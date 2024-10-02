@@ -14,121 +14,47 @@ const getDepartments = async (req, res) => {
     }
 }
 
+const populateAppointmentData = (query) => {
+    return Appointment.find(query).populate({
+        path: 'doctorId',
+        populate: {
+            path: 'userId'
+        }
+    }).populate({
+        path: 'patientId',
+        populate: {
+            path: 'userId'
+        }
+    });
+};
+
 const getAppointments = async (req, res) => {
     try {
-        // console.log("appDate",req.body.appDate)
-        let isTimeSlotAvailable = req.body.isTimeSlotAvailable;
-        let appointmentDate = req.body.appDate?(new Date(req.body.appDate).toISOString().slice(0, 10)):null;
-        let docID = req.body.doctorID;
-        let appointments = [];
-        if (isTimeSlotAvailable) {
-            if (docID) {
-                appointments = await Appointment.find({
-                    'isTimeSlotAvailable': isTimeSlotAvailable,
-                    'appointmentDate': appointmentDate,
-                    'doctorId': mongoose.Types.ObjectId(docID)
-                });
-            }
-            else if (req.sender.userType == "Doctor") {
-                appointments = await Appointment.find({
-                    'isTimeSlotAvailable': isTimeSlotAvailable,
-                    'appointmentDate': appointmentDate,
-                    'doctorId': req.sender.doctorId
-                }).populate({
-                    path: 'doctorId',
-                    populate: {
-                        path: 'userId'
-                    }
-                })
-                    .populate({
-                        path: 'patientId',
-                        populate: {
-                            path: 'userId'
-                        }
-                    });
-            }
-        } else if (isTimeSlotAvailable == false) {
-            // console.log("here 2")
-            if (req.sender.userType == "Admin") {
-                let query = {
-                    'isTimeSlotAvailable': false,
-                    'appointmentDate': appointmentDate,
-                    "completed": false
-                }
-                if (docID) {
-                    query.doctorId = mongoose.Types.ObjectId(docID)
-                }
-                // appointments = await Appointment.find(query).lean();
-                appointments = await Appointment.find(query)
-                    .populate({
-                        path: 'doctorId',
-                        populate: {
-                            path: 'userId'
-                        }
-                    })
-                    .populate({
-                        path: 'patientId',
-                        populate: {
-                            path: 'userId'
-                        }
-                    });
-            }
-            else if (req.sender.userType == "Patient") {
-                console.log("patientId" , req.sender.patientId);
-                let query = {
-                    'isTimeSlotAvailable': false,
-                    'completed': false,
-                    'patientId': req.sender.patientId
-                }
-                if (docID){
-                    query.doctorId = mongoose.Types.ObjectId(docID)
-                }
-                if (appointmentDate) {
-                    query.appointmentDate = appointmentDate
-                }
-                appointments = await Appointment.find(query).populate({
-                    path: 'doctorId',
-                    populate: {
-                        path: 'userId'
-                    }
-                })
-                    .populate({
-                        path: 'patientId',
-                        populate: {
-                            path: 'userId'
-                        }
-                    });
-            }
-            else if (req.sender.userType == "Doctor") {
-                appointments = await Appointment.find({
-                    'isTimeSlotAvailable': false,
-                    'completed': false,
-                    'appointmentDate': appointmentDate,
-                    'doctorId': req.sender.doctorId
-                }).populate({
-                    path: 'doctorId',
-                    populate: {
-                        path: 'userId'
-                    }
-                })
-                    .populate({
-                        path: 'patientId',
-                        populate: {
-                            path: 'userId'
-                        }
-                    });
-            }
-            // console.log(appointments)
+        const isTimeSlotAvailable = req.body.isTimeSlotAvailable;
+        const appointmentDate = req.body.appDate ? new Date(req.body.appDate).toISOString().slice(0, 10) : null;
+        const docID = req.body.doctorID;
+
+        let query = {
+            'appointmentDate': appointmentDate,
+            'isTimeSlotAvailable': isTimeSlotAvailable,
+            'completed': !isTimeSlotAvailable
+        };
+
+        if (docID) {
+            query.doctorId = mongoose.Types.ObjectId(docID);
+        } else if (req.sender.userType === "Doctor") {
+            query.doctorId = req.sender.doctorId;
+        } else if (req.sender.userType === "Patient") {
+            query.patientId = req.sender.patientId;
         }
-        // console.log("appointmentDate",appointmentDate);
-        // console.log("docID",docID);
-        // console.log("isTimeSlotAvailable",isTimeSlotAvailable);
-        // console.log("appointments",appointments);
-        res.json({ message: "success", 'appointments': appointments });
+
+        const appointments = await populateAppointmentData(query);
+        res.json({ message: "success", appointments });
     } catch (error) {
         res.status(500).json({ errors: [error.message] });
     }
-}
+};
+
 
 const createAppointmentSlot = async (req, res) => {
     try {
